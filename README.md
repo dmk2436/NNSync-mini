@@ -1,1 +1,1 @@
-# NNSync
+# NNSync-mini
