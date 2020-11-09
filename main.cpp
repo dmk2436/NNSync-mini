@@ -4,7 +4,18 @@
 #include <vector>
 #include <stdlib.h>
 
+int i_count = 0, o_count = 0;
+
 void arraycpy(float* dest, const float *src, int cnt) {
+    switch(cnt) {
+        case 4:
+        ++i_count;
+        break;
+        case 3:
+        ++o_count;
+        break;
+    }
+
     for(int i = 0; i < cnt; ++i)
         dest[i] = src[i];
 }
@@ -18,6 +29,7 @@ list_t *nns;
 node_t *src0_n, *dense1_n, *relu1_n, *dense2_n, *softmax2_n, *sink0_n;
 
 void inference(int thread_idx, rlu_thread_data_t* self, float data[], float result[]) {
+    printf("Start: %d, I/O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency);
 restart:
     RLU_READER_LOCK(self);
 	if (!RLU_TRY_LOCK(self, &src0_n)) {
@@ -50,8 +62,9 @@ restart:
 	}
     softmax2->forward(dense2_n->val, softmax2_n->val);
 
-    arraycpy(result, softmax2_n->val, 3);
+    arraycpy(result, src0_n->val, 3);
     RLU_READER_UNLOCK(self);
+    printf("End: %d, I/O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency());
 }
 
 void train(int thread_idx, rlu_thread_data_t* self, float data[], float result[]) {
@@ -154,7 +167,7 @@ int main() {
     }
 
     std::vector<std::thread*> t;
-    for(int i = 0; i < 1; ++i) {
+    for(int i = 0; i < 100; ++i) {
         auto _t = new std::thread(inference, i, self, data[i], result[i]);
         t.push_back(_t);
     }
