@@ -43,9 +43,15 @@ int rlu_list_size(rlu_thread_data_t* self, list_t* p_list) {
     return size;
 }
 
-node_t* rlu_list_add(rlu_thread_data_t* self, node_t* p_prev, node_t* p_next, val_t val) {
-    node_t* p_new_node = rlu_new_node();
+int rlu_list_add(rlu_thread_data_t* self, list_t* p_list, node_t* p_new_node, val_t val) {
+    p_new_node->val = val;
+    
+    RLU_ASSIGN_PTR(self, &(p_list->p_head), p_new_node);
 
+    return 1;
+}
+
+int rlu_list_add(rlu_thread_data_t* self, node_t* p_prev, node_t* p_new_node, val_t val) {
     p_new_node->val = val;
 
 restart:
@@ -53,65 +59,10 @@ restart:
         RLU_ABORT(self);
         goto restart;
     }
-    if(!RLU_TRY_LOCK(self, &p_next)) {
-        RLU_ABORT(self);
-        goto restart;
-    }
     
-    RLU_ASSIGN_PTR(self, &(p_new_node->p_next), p_next);
     RLU_ASSIGN_PTR(self, &(p_prev->p_next), p_new_node);
 
-    return p_new_node;
-}
-
-int rlu_list_add(rlu_thread_data_t* self, list_t* p_list, node_t* new_node, val_t val) {
-    int result;
-    node_t *p_prev, *p_next;
-    val_t v;
-
-restart:
-    RLU_READER_LOCK(self);
-
-    p_prev = (node_t*)RLU_DEREF(self, p_list->p_head);
-    p_next = (node_t*)RLU_DEREF(self, p_prev->p_next);
-
-    if(p_prev == NULL || p_next == NULL) {
-        perror("NULL from RLU_DEREF");
-        exit(1);
-    }
-
-    while(1) {
-        // p_node = (node_t*)RLU_DEREF(self, p_next);
-        v = p_next->val;
-
-        if(v >= val)
-            break;
-        
-        p_prev = p_next;
-        p_next = (node_t*)RLU_DEREF(self, p_prev->p_next);
-    }
-
-    result = (v != val);
-
-    if(result) {
-        if(!RLU_TRY_LOCK(self, &p_prev)) {
-            RLU_ABORT(self);
-            goto restart;
-        }
-        if(!RLU_TRY_LOCK(self, &p_next)) {
-            RLU_ABORT(self);
-            goto restart;
-        }
-
-        new_node->val = val;
-
-        RLU_ASSIGN_PTR(self, &(new_node->p_next), p_next);
-        RLU_ASSIGN_PTR(self, &(p_prev->p_next), new_node);
-    }
-
-    RLU_READER_UNLOCK(self);
-
-    return result;
+    return 1;
 }
 
 int rlu_node_remove(rlu_thread_data_t* self, node_t* p_node) {

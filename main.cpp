@@ -107,7 +107,6 @@ restart:
 }
 
 int main() {
-    printf("Hello world!\n");
     RLU_INIT();
 
     auto self = RLU_THREAD_ALLOC();
@@ -121,31 +120,30 @@ int main() {
     dense2 = new dense((layer&)relu1, 4, 3);
     softmax2 = new softmax((layer&)dense2, 3);
 
-    node_t* src0_n = rlu_new_node();
+    src0_n = rlu_new_node();
     float src0_p[4] = {0.0, };
     rlu_list_add(self, nns, src0_n, src0_p);
 
-    node_t* dense1_n = rlu_new_node();
+    dense1_n = rlu_new_node();
     float dense1_p[4] = {0.0, };
-    rlu_list_add(self, nns, dense1_n, dense1_p);
+    rlu_list_add(self, src0_n, dense1_n, dense1_p);
 
-    node_t* relu1_n = rlu_new_node();
+    relu1_n = rlu_new_node();
     float relu1_p[4] = {0.0, };
-    rlu_list_add(self, nns, relu1_n, relu1_p);
+    rlu_list_add(self, dense1_n, relu1_n, relu1_p);
 
-    node_t* dense2_n = rlu_new_node();
+    dense2_n = rlu_new_node();
     float dense2_p[3] = {0.0, };
-    rlu_list_add(self, nns, dense2_n, dense2_p);
+    rlu_list_add(self, relu1_n, dense2_n, dense2_p);
 
-    node_t* softmax2_n = rlu_new_node();
+    softmax2_n = rlu_new_node();
     float softmax2_p[3] = {0.0, };
-    rlu_list_add(self, nns, softmax2_n, softmax2_p);
+    rlu_list_add(self, dense2_n, softmax2_n, softmax2_p);
 
-    node_t* sink0_n = rlu_new_node();
+    sink0_n = rlu_new_node();
     float sink0_p[3] = {0.0, };
-    rlu_list_add(self, nns, sink0_n, sink0_p);
+    rlu_list_add(self, softmax2_n, sink0_n, sink0_p);
 
-    // TODO: add tasks
     float data[100][4];
     float result[100][3];
     for(int i = 0; i < 100; ++i) {
@@ -155,19 +153,14 @@ int main() {
             result[i][j] = 0.0;
     }
 
-    printf("checkpoint\n");
     std::vector<std::thread*> t;
-    for(int i = 0; i < 100; ++i) {
-        auto t_i = new std::thread(inference, i, self, data[i], result[i]);
-        t.push_back(t_i);
-        auto *t_t = new std::thread(train, i, self, data[i], result[i]);
-        t.push_back(t_t);
+    for(int i = 0; i < 1; ++i) {
+        auto _t = new std::thread(inference, i, self, data[i], result[i]);
+        t.push_back(_t);
     }
-    while(t.empty()) {
-        t[0]->join();
-        t.pop_back();
-    }
-
+    for (auto it : t)
+        it->join();
+    
     RLU_THREAD_FINISH(self);
     RLU_THREAD_FREE(self);
 
