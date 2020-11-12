@@ -48,7 +48,7 @@ int input(rlu_thread_data_t *self, T *element, node_t *element_n, val_t data) {
 	}
     node_t* i = (node_t *)RLU_DEREF(self, (element_n));
     element->forward(data, i->val);
-    versions.insert(i);
+    versions[0].insert(i);
     ++i_count;
     return 1;
 }
