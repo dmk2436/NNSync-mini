@@ -7,6 +7,8 @@
 #include "set"
 #include "iostream"
 
+#define TEST_SIZE 64
+
 src *src0;
 sink *sink0;
 dense *dense1, *dense2;
@@ -176,9 +178,9 @@ int main() {
     float sink0_p[3] = {0.0, };
     rlu_list_add(self, softmax2_n, sink0_n, sink0_p);
 
-    float data[100][4];
-    float result[100][3];
-    for(int i = 0; i < 100; ++i) {
+    float data[TEST_SIZE][4];
+    float result[TEST_SIZE][3];
+    for(int i = 0; i < TEST_SIZE; ++i) {
         for(int j = 0; j < 4; ++j)
             data[i][j] = (float)rand() / (float)RAND_MAX;
         for(int j = 0; j < 3; ++j)
@@ -186,7 +188,7 @@ int main() {
     }
 
     std::vector<std::thread*> t;
-    for(int i = 0; i < 100; ++i) {
+    for(int i = 0; i < TEST_SIZE; ++i) {
         auto _ti = new std::thread(inference, i, self, data[i], result[i]);
         t.push_back(_ti);
         auto _tt = new std::thread(train, i, self, data[i], result[i]);
