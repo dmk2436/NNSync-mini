@@ -14,4 +14,5 @@ $(TARGET) :
 		$(CXX) -c $(SRCS) $(INC) $(LIB_DIRS) $(LIBS) -g
 
 clean :
+		rm -f *.o
 		rm -f $(TARGET)

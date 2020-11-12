@@ -11,8 +11,6 @@ layer::layer() {}
 layer::~layer() {}
 
 dense::dense(layer& prev, uint w_from, uint w_to) {
-    type = DENSE;
-
     this->w_from = w_from;
     this->w_to = w_to;
 
@@ -28,21 +26,21 @@ dense::dense(layer& prev, uint w_from, uint w_to) {
 
 dense::~dense() {}
 
-void dense::forward(float* prev, float* dest) {
+void dense::forward(float* prev, float* next) {
     for(int i = 0; i < w_to; ++i)
-        dest[i] = 0.0;
+        next[i] = 0.0;
     for(int i = 0; i < w_to; ++i)
         for(int j = 0; j < w_from; ++j)
-            dest[i] += prev[j] * weights[coordinate(j, i, w_from, w_to)];
+            next[i] += prev[j] * weights[coordinate(j, i, w_from, w_to)];
     for(int i = 0; i < w_to; ++i)
-        dest[i] += bias[i];
+        next[i] += bias[i];
     
 #ifdef DELAY
     sleep(1);
 #endif
 }
 
-void dense::backward(float* prev, float* dest, float* upper, float* lower) {
+void dense::backward(float* next, float* prev, float* upper, float* lower) {
     free(gradient);
     gradient = (float*)malloc(w_from * sizeof(float));
 
@@ -76,19 +74,17 @@ void dense::backward(float* prev, float* dest, float* upper, float* lower) {
 }
 
 relu::relu(layer& prev, uint w_size) {
-    type = RELU;
-
     this->w_size = w_size;
 }
 
 relu::~relu() {}
 
-void relu::forward(float* prev, float* dest) {
+void relu::forward(float* prev, float* next) {
     for(int i = 0; i < w_size; ++i) {
         if(prev[i] >= 0)
-            dest[i] = prev[i];
+            next[i] = prev[i];
         else
-            dest[i] = 0.0;
+            next[i] = 0.0;
     }
 
 #ifdef DELAY
@@ -96,7 +92,7 @@ void relu::forward(float* prev, float* dest) {
 #endif
 }
 
-void relu::backward(float* prev, float* dest, float* upper, float* lower) {
+void relu::backward(float* next, float* prev, float* upper, float* lower) {
     free(gradient);
     gradient = (float*)malloc(w_size * sizeof(float));
         
@@ -116,27 +112,26 @@ void relu::backward(float* prev, float* dest, float* upper, float* lower) {
 }
 
 softmax::softmax(layer& prev, uint w_size) {
-    type = SOFTMAX;
     this->w_size = w_size;
 }
 
 softmax::~softmax() {}
 
-void softmax::forward(float* prev, float* dest) {
+void softmax::forward(float* prev, float* next) {
     float sum = 0.0;
 
     for(int i = 0; i < w_size; ++i)
         sum += expf(prev[i]);
         
     for(int i = 0; i < w_size; ++i)
-        dest[i] = expf(prev[i]) / sum;
+        next[i] = expf(prev[i]) / sum;
 
 #ifdef DELAY
     sleep(1);
 #endif
 }
 
-void softmax::backward(float* prev, float* dest, float* upper, float* lower) {
+void softmax::backward(float* next, float* prev, float* upper, float* lower) {
     free(gradient);
     gradient = (float*)malloc(w_size * sizeof(float));
 
@@ -153,4 +148,32 @@ void softmax::backward(float* prev, float* dest, float* upper, float* lower) {
 #ifdef DELAY
     sleep(5);
 #endif
+}
+
+src::src(uint w_size) {
+    this->w_size = w_size;
+}
+
+src::~src() {}
+
+void src::forward(float* prev, float* next) {
+    for(int i = 0; i < w_size; ++i)
+        next[i] = prev[i];
+}
+
+void src::backward(float* next, float* prev) {
+}
+
+sink::sink(layer& prev, uint w_size) {
+    this->w_size = w_size;
+}
+
+sink::~sink() {}
+
+void sink::forward(float* prev, float* next) {
+    for(int i = 0; i < w_size; ++i)
+        next[i] = prev[i];
+}
+
+void sink::backward(float* next, float* prev) {
 }

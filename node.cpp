@@ -47,6 +47,7 @@ int rlu_list_add(rlu_thread_data_t* self, list_t* p_list, node_t* p_new_node, va
     p_new_node->val = val;
     
     RLU_ASSIGN_PTR(self, &(p_list->p_head), p_new_node);
+    RLU_ASSIGN_PTR(self, &(p_new_node->p_prev), NULL);
 
     return 1;
 }
@@ -55,12 +56,22 @@ int rlu_list_add(rlu_thread_data_t* self, node_t* p_prev, node_t* p_new_node, va
     p_new_node->val = val;
 
 restart:
+    RLU_READER_LOCK(self);
+
+    if (p_prev == NULL) {
+		perror("NULL from RLU_DEREF");
+		exit(1);
+	}
+
     if(!RLU_TRY_LOCK(self, &p_prev)) {
         RLU_ABORT(self);
         goto restart;
     }
     
     RLU_ASSIGN_PTR(self, &(p_prev->p_next), p_new_node);
+    RLU_ASSIGN_PTR(self, &(p_new_node->p_prev), p_prev);
+
+    RLU_READER_UNLOCK(self);
 
     return 1;
 }

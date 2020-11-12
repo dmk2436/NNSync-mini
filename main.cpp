@@ -4,119 +4,137 @@
 #include <vector>
 #include <stdlib.h>
 
-int i_count = 0, o_count = 0;
+#include "set"
+#include "iostream"
 
-void arraycpy(float* dest, const float *src, int cnt) {
-    switch(cnt) {
-        case 4:
-        ++i_count;
-        break;
-        case 3:
-        ++o_count;
-        break;
-    }
-
-    for(int i = 0; i < cnt; ++i)
-        dest[i] = src[i];
-}
-
-layer *src0;
+src *src0;
+sink *sink0;
 dense *dense1, *dense2;
 relu *relu1;
 softmax *softmax2;
 
 list_t *nns;
 node_t *src0_n, *dense1_n, *relu1_n, *dense2_n, *softmax2_n, *sink0_n;
+std::set<node_t*> versions[6];
+
+int i_count = 0, o_count = 0;
+
+template<class T>
+int proceed(rlu_thread_data_t *self, T *element, node_t *element_n, int index) {
+restart:
+    if (element_n == NULL) {
+		perror("NULL from RLU_DEREF");
+		exit(1);
+	}
+    if (!RLU_TRY_LOCK(self, &element_n)) {
+		RLU_ABORT(self);
+		return 0;
+	}
+    node_t* i = (node_t*)RLU_DEREF(self, (element_n->p_prev));
+    element->forward(i->val, element_n->val);
+    versions[index+1].insert(i);
+    return 1;
+}
+
+template<class T>
+int input(rlu_thread_data_t *self, T *element, node_t *element_n, val_t data) {
+    if (element_n == NULL) {
+		perror("NULL from RLU_DEREF");
+		exit(1);
+	}
+    if (!RLU_TRY_LOCK(self, &element_n)) {
+		RLU_ABORT(self);
+        return 0;
+	}
+    node_t* i = (node_t *)RLU_DEREF(self, (element_n));
+    element->forward(data, i->val);
+    versions[0].insert(i);
+    ++i_count;
+    return 1;
+}
+
+template<class T>
+int output(rlu_thread_data_t *self, T *element, node_t *element_n, val_t data) {
+    if (element_n == NULL) {
+		perror("NULL from RLU_DEREF");
+		exit(1);
+	}
+    if (!RLU_TRY_LOCK(self, &element_n)) {
+		RLU_ABORT(self);
+        return 0;
+	}
+    node_t* i = (node_t *)RLU_DEREF(self, element_n);
+    element->forward(((node_t*)RLU_DEREF(self, (element_n->p_prev)))->val, i->val);
+    element->forward(((node_t*)RLU_DEREF(self, (element_n->p_prev)))->val, data);
+    versions[5].insert(i);
+    ++o_count;
+    return 1;
+}
 
 void inference(int thread_idx, rlu_thread_data_t* self, float data[], float result[]) {
-    printf("Start: %d, I/O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency);
+    printf("Start: I%d, I / O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency);
 restart:
     RLU_READER_LOCK(self);
-	if (!RLU_TRY_LOCK(self, &src0_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    arraycpy(src0_n->val, data, 4);
-
-    if (!RLU_TRY_LOCK(self, &dense1_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    dense1->forward(src0_n->val, dense1_n->val);
-
-    if (!RLU_TRY_LOCK(self, &relu1_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    relu1->forward(dense1_n->val, relu1_n->val);
-
-    if (!RLU_TRY_LOCK(self, &dense2_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    dense2->forward(relu1_n->val, dense2_n->val);
-
-    if (!RLU_TRY_LOCK(self, &softmax2_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    softmax2->forward(dense2_n->val, softmax2_n->val);
-
-    arraycpy(result, src0_n->val, 3);
+	if(!input<src>(self, src0, src0_n, data))
+        goto restart;
+    if(!proceed<dense>(self, dense1, dense1_n, 0))
+        goto restart;
+    if(!proceed<relu>(self, relu1, relu1_n, 1))
+        goto restart;
+    if(!proceed<dense>(self, dense2, dense2_n, 2))
+        goto restart;
+    if(!proceed<softmax>(self, softmax2, softmax2_n, 3))
+        goto restart;
+    if(!output<sink>(self, sink0, sink0_n, data))
+        goto restart;
+    std::string output = "Versions: ";
+    for(int i = 0; i < 5; i++)
+        output.append(std::to_string(versions[i].size()) + " --> ");
+    output.append(std::to_string(versions[5].size()));
+    std::cout<<output<<std::endl;
     RLU_READER_UNLOCK(self);
-    printf("End: %d, I/O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency());
+    printf("End: I%d, I / O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency());
 }
 
 void train(int thread_idx, rlu_thread_data_t* self, float data[], float result[]) {
+    printf("Start: T%d, I / O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency);
 restart:
     RLU_READER_LOCK(self);
     // forward
-	if (!RLU_TRY_LOCK(self, &src0_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    arraycpy(src0_n->val, data, 4);
-
-    if (!RLU_TRY_LOCK(self, &dense1_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    dense1->forward(src0_n->val, dense1_n->val);
-
-    if (!RLU_TRY_LOCK(self, &relu1_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    relu1->forward(dense1_n->val, relu1_n->val);
-
-    if (!RLU_TRY_LOCK(self, &dense2_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    dense2->forward(relu1_n->val, dense2_n->val);
-
-    if (!RLU_TRY_LOCK(self, &softmax2_n)) {
-		RLU_ABORT(self);
-		goto restart;
-	}
-    softmax2->forward(dense2_n->val, softmax2_n->val);
-
-    arraycpy(result, softmax2_n->val, 3);
+	if(!input<src>(self, src0, src0_n, data))
+        goto restart;
+    if(!proceed<dense>(self, dense1, dense1_n, 0))
+        goto restart;
+    if(!proceed<relu>(self, relu1, relu1_n, 1))
+        goto restart;
+    if(!proceed<dense>(self, dense2, dense2_n, 2))
+        goto restart;
+    if(!proceed<softmax>(self, softmax2, softmax2_n, 3))
+        goto restart;
+    if(!output<sink>(self, sink0, sink0_n, data))
+        goto restart;
 
     // backward
     float init_grad[3] = {1.0, 1.0, 1.0};
-    float softmax2_grad[3] = {0.0, };
+    float softmax2_grad[3];
     softmax2->backward(softmax2_n->val, sink0_n->val, init_grad, softmax2_grad);
 
-    float dense2_grad[3 * 4] = {0.0, };
+    float dense2_grad[3 * 4];
     dense2->backward(dense2_n->val, softmax2_n->val, softmax2_grad, dense2_grad);
 
-    float relu1_grad[4] = {0.0, };
+    float relu1_grad[4];
     relu1->backward(relu1_n->val, dense2_n->val, dense2_grad, relu1_grad);
 
-    float dense1_grad[4 * 4] = {0.0, };
+    float dense1_grad[4 * 4];
     dense1->backward(dense1_n->val, relu1_n->val, relu1_grad, dense1_grad);
+
+    std::string output = "Versions: ";
+    for(int i = 0; i < 5; i++)
+        output.append(std::to_string(versions[i].size()) + " --> ");
+    output.append(std::to_string(versions[5].size()));
+    std::cout<<output<<std::endl;
     RLU_READER_UNLOCK(self);
+    printf("End: T%d, I / O count: %d / %d, current threads: %d\n", thread_idx, i_count, o_count, std::thread::hardware_concurrency());
 }
 
 int main() {
@@ -127,11 +145,12 @@ int main() {
 
     nns = rlu_new_list();
 
-    src0 = new layer();
+    src0 = new src(4);
     dense1 = new dense((layer&)src0, 4, 4);
     relu1 = new relu((layer&)dense1, 4);
     dense2 = new dense((layer&)relu1, 4, 3);
     softmax2 = new softmax((layer&)dense2, 3);
+    sink0 = new sink((layer&)softmax2, 3);
 
     src0_n = rlu_new_node();
     float src0_p[4] = {0.0, };
@@ -168,8 +187,10 @@ int main() {
 
     std::vector<std::thread*> t;
     for(int i = 0; i < 100; ++i) {
-        auto _t = new std::thread(inference, i, self, data[i], result[i]);
-        t.push_back(_t);
+        auto _ti = new std::thread(inference, i, self, data[i], result[i]);
+        t.push_back(_ti);
+        auto _tt = new std::thread(train, i, self, data[i], result[i]);
+        t.push_back(_tt);
     }
     for (auto it : t)
         it->join();
