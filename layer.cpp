@@ -6,6 +6,8 @@
 
 #define coordinate(x, y, w, h) (w) * (y) + (x)
 
+#define DELAY
+
 layer::layer() {}
 
 layer::~layer() {}

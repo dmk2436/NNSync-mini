@@ -33,7 +33,7 @@ restart:
 		return 0;
 	}
     node_t* i = (node_t*)RLU_DEREF(self, (element_n->p_prev));
-    element->forward(i->val, element_n->val);
+    element->forward(i->val, ((node_t*)RLU_DEREF(self, (element_n)))->val);
     versions[index+1].insert(i);
     return 1;
 }
@@ -119,16 +119,16 @@ restart:
     // backward
     float init_grad[3] = {1.0, 1.0, 1.0};
     float softmax2_grad[3];
-    softmax2->backward(softmax2_n->val, sink0_n->val, init_grad, softmax2_grad);
+    softmax2->backward(((node_t*)RLU_DEREF(self, (softmax2_n)))->val, ((node_t*)RLU_DEREF(self, (sink0_n)))->val, init_grad, softmax2_grad);
 
     float dense2_grad[3 * 4];
-    dense2->backward(dense2_n->val, softmax2_n->val, softmax2_grad, dense2_grad);
-
+    dense2->backward(((node_t*)RLU_DEREF(self, (dense2_n)))->val, ((node_t*)RLU_DEREF(self, (softmax2_n)))->val, softmax2_grad, dense2_grad);
+    
     float relu1_grad[4];
-    relu1->backward(relu1_n->val, dense2_n->val, dense2_grad, relu1_grad);
+    relu1->backward(((node_t*)RLU_DEREF(self, (relu1_n)))->val, ((node_t*)RLU_DEREF(self, (dense2_n)))->val, dense2_grad, relu1_grad);
 
     float dense1_grad[4 * 4];
-    dense1->backward(dense1_n->val, relu1_n->val, relu1_grad, dense1_grad);
+    dense1->backward(((node_t*)RLU_DEREF(self, (dense1_n)))->val, ((node_t*)RLU_DEREF(self, (relu1_n)))->val, relu1_grad, dense1_grad);
 
     std::string output = "Versions: ";
     for(int i = 0; i < 5; i++)

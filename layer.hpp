@@ -1,5 +1,3 @@
-#define DELAY
-
 #define EMPTY 0
 #define DENSE 1
 #define RELU 2
