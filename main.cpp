@@ -8,7 +8,7 @@
 #include "iostream"
 
 #define TEST_SIZE 64
-// #define TEST
+#define TEST
 
 #define MODE_INFERENCE 0
 #define MODE_TRAIN 1
