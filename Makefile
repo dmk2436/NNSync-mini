@@ -7,11 +7,11 @@ LIB_DIRS        = -L./lib
 INC             = -I./include
  
 all : $(TARGET)
-		$(CXX) -o $(TARGET) $(OBJS) $(INC) $(LIB_DIRS) $(LIBS) -g
+		$(CXX) -o $(TARGET) $(OBJS) $(INC) $(LIB_DIRS) $(LIBS)
 		rm -f *.o
 
 $(TARGET) :
-		$(CXX) -c $(SRCS) $(INC) $(LIB_DIRS) $(LIBS) -g
+		$(CXX) -c $(SRCS) $(INC) $(LIB_DIRS) $(LIBS)
 
 clean :
 		rm -f *.o
